@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instagram画像作成 ｜ ENTRY LIST</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root { --ink:#16140f; --paper:#f4f1ea; --card:#fffdf8; --line:#e6e1d5; --line2:#c9c2b2; --muted:#5b554a; --amber:#e0962e; --amber2:#b8701d; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: 'Noto Sans JP', 'Hiragino Sans', sans-serif; }
+.top { background: var(--ink); color: var(--paper); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+.top img { height: 28px; }
+.top b { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: .04em; font-weight: 400; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg button { font-family: inherit; font-size: 14px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line2); background: transparent; color: var(--muted); cursor: pointer; }
+.seg button.on { background: var(--amber); border-color: var(--amber); color: var(--ink); font-weight: 700; }
+label { font-size: 13px; color: var(--muted); }
+input[type=text] { font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: 4px; width: 100%; max-width: 420px; background: #fff; }
+.btn { font-family: inherit; font-size: 14px; font-weight: 700; padding: 10px 16px; border-radius: 4px; border: 0; background: var(--ink); color: var(--paper); cursor: pointer; }
+.btn.sub { background: transparent; color: var(--ink); border: 1.5px solid var(--ink); }
+.help { font-size: 12px; color: var(--muted); line-height: 1.8; }
+.imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.imgs figure { margin: 0; }
+.imgs img { width: 100%; height: auto; display: block; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+.imgs figcaption { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.imgs figcaption a { font-weight: 700; color: var(--amber2); }
+.status { font-size: 13px; color: var(--muted); }
+.status.err { color: #a33; }
+</style>
+</head>
+<body>
+<div class="top"><img src="./mono-logo-white.png" alt="Mono Climbing Studio"><b>INSTAGRAM 画像作成（スタッフ用）</b></div>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="row seg" id="fmt">
+      <button data-f="story" class="on">ストーリーズ 1080×1920</button>
+      <button data-f="feed">フィード 1080×1350</button>
+    </div>
+    <div style="height:10px"></div>
+    <label>画像下部に入れる一言（空欄可）</label><br>
+    <input type="text" id="msg" value="エントリー受付中！ 最新リストはリンクから">
+    <div style="height:10px"></div>
+    <div class="row">
+      <button class="btn" id="make">最新データで画像を作る</button>
+      <span class="status" id="status"></span>
+    </div>
+  </div>
+
+  <div class="imgs" id="out"></div>
+
+  <div class="panel help" style="margin-top:14px">
+    <b>投稿のしかた</b><br>
+    ・<b>iPhone</b>：画像を長押し →「"写真"に保存」。<b>PC</b>：画像下の「保存」から。<br>
+    ・ストーリーズ：画像を載せたら「リンク」スタンプで <b id="urlTxt"></b> を貼る。→ ハイライト「ENTRY」に追加しておくと、いつでも見てもらえます。<br>
+    ・フィード：複数枚になったときはカルーセル（まとめて1投稿）に。キャプションに「最新リストはプロフィールのリンクから」。<br>
+    ・エントリー名とカテゴリーのみを表示します（氏名・連絡先などは含みません）。
+  </div>
+</div>
+
+<script src="./config.js"></script>
+<script>
+const CSV_URL = (window.ENTRY_CONFIG && window.ENTRY_CONFIG.csvUrl) || '';
+const PAGE_URL = location.origin + '/';
+document.getElementById('urlTxt').textContent = PAGE_URL.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+const COMP = { kicker: 'MONO CLIMBING STUDIO HAKATA', title: 'MONO BOULDERING COMPETITION', sub: 'IN HAKATA R-18 VOL.2 ／ 2026' };
+const C = { ink: '#16140f', paper: '#f4f1ea', card: '#fffdf8', line: '#e6e1d5', muted: '#8a8375', amber: '#e0962e', text: '#f4f1ea' };
+let fmt = 'story';
+
+document.querySelectorAll('#fmt button').forEach(b => b.onclick = () => {
+  fmt = b.dataset.f; document.querySelectorAll('#fmt button').forEach(x => x.classList.toggle('on', x === b));
+});
+document.getElementById('make').onclick = make;
+
+// ---- データ（公開ページと同じ処理） ----
+function parseCSV(t) { const rows=[]; let row=[], f='', q=false;
+  for (let i=0;i<t.length;i++){ const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else if(c==='"') q=true; else if(c===','){row.push(f);f='';} else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';} else if(c!=='\r') f+=c; }
+  if(f!==''||row.length){row.push(f);rows.push(row);} return rows; }
+const clean = v => String(v||'').replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,'').trim();
+function catRank(name){ const n=name.toUpperCase(); let r=500;
+  if(/U-?\s?8\b/.test(n)) r=10; else if(/U-?\s?10\b/.test(n)) r=20; else if(/U-?\s?12\b/.test(n)) r=30;
+  else if(/BEGINNER|ビギナー/.test(n)) r=100; else if(/UPPER\s*MIDDLE/.test(n)) r=220; else if(/MIDDLE|ミドル/.test(n)) r=200;
+  else if(/EXPERT\s*ADVANCED/.test(n)) r=420; else if(/EXPERT/.test(n)) r=400; else if(/OVER\s*40/.test(n)) r=330;
+  else if(/MASTER/.test(n)) r=300; else if(/OPEN/.test(n)) r=600;
+  if(/WOMEN|WOMAN|LADIES|女子/.test(n)) r+=5; return r; }
+const shortName = n => n.replace(/[（(][^）)]*[）)]/g,'').trim() || n;
+const gradeOf = n => { const m=n.match(/[（(]([^）)]*)[）)]/); return m?m[1].trim():''; };
+
+async function loadCats() {
+  const res = await fetch(CSV_URL + (CSV_URL.includes('?')?'&':'?') + '_=' + Date.now(), { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const rows = parseCSV(await res.text()).filter(r => r.some(v => v && v.trim()));
+  const entries = rows.slice(1).map(r => ({ name: clean(r[0]), cat: clean(r[1]) })).filter(e => e.name || e.cat);
+  const order=[], map=new Map();
+  entries.forEach(e => { const c=e.cat||'（カテゴリー未設定）'; if(!map.has(c)){map.set(c,[]);order.push(c);} map.get(c).push(e.name||'（未記入）'); });
+  const cats = order.map((c,i)=>({ name:c, rank:catRank(c), idx:i, list:map.get(c) })).sort((a,b)=>a.rank-b.rank||a.idx-b.idx);
+  return { entries, cats };
+}
+
+// ---- 描画 ----
+const logo = new Image(); logo.src = './mono-logo-white.png';
+const logoReady = new Promise(r => { if (logo.complete && logo.naturalWidth) r(); else { logo.onload = r; logo.onerror = r; } });
+
+function fit(ctx, text, maxW) { // 長い名前は縮めずに省略
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…';
+}
+
+function layout(cats, W, bodyTop, bodyBottom, k) {
+  // 各カテゴリーを「見出し + 2列の名前」で積む。はみ出たら次のページへ（カテゴリー途中でも分割）
+  const HEAD = 78 * k, ROW = 58 * k, GAP = 22 * k, pages = []; let page = [], y = bodyTop;
+  const push = () => { pages.push(page); page = []; y = bodyTop; };
+  cats.forEach(c => {
+    let rest = c.list.map((n, i) => ({ n, no: i + 1 })), cont = false;
+    while (rest.length) {
+      if (y + HEAD + ROW > bodyBottom) push();
+      const rowsFit = Math.max(1, Math.floor((bodyBottom - y - HEAD) / ROW));
+      const take = rest.slice(0, rowsFit * 2); rest = rest.slice(take.length);
+      const h = HEAD + Math.ceil(take.length / 2) * ROW;
+      page.push({ c, items: take, y, h, cont, k }); y += h + GAP; cont = true;
+      if (rest.length) push();
+    }
+  });
+  if (page.length) pages.push(page);
+  return pages;
+}
+
+function drawPage(W, H, blocks, pageNo, pageCount, total, catCount, stamp, msg) {
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x = cv.getContext('2d');
+  const M = 64, story = H > 1500;
+  // 背景
+  x.fillStyle = C.ink; x.fillRect(0, 0, W, H);
+  // ヘッダー
+  const top = story ? 120 : 64; // ストーリーズは上部のUIを避ける
+  if (logo.naturalWidth) { const lh = 62, lw = logo.naturalWidth * lh / logo.naturalHeight; x.drawImage(logo, M, top, lw, lh); }
+  x.textBaseline = 'alphabetic';
+  x.fillStyle = C.amber; x.font = '400 34px "Bebas Neue"'; x.textAlign = 'right';
+  x.fillText(pageCount > 1 ? `${pageNo} / ${pageCount}` : 'ENTRY LIST', W - M, top + 46); x.textAlign = 'left';
+  let y = top + 150;
+  x.fillStyle = C.amber; x.font = '400 30px "Bebas Neue"'; x.fillText(COMP.kicker.split('').join(String.fromCharCode(8202)), M, y);
+  y += 84; x.fillStyle = C.text; x.font = '400 92px "Bebas Neue"'; x.fillText('ENTRY LIST', M, y);
+  y += 58; x.font = '400 44px "Bebas Neue"'; x.fillText(COMP.title, M, y);
+  y += 44; x.globalAlpha = .75; x.fillText(COMP.sub, M, y); x.globalAlpha = 1;
+  // 集計バッジ
+  y += 40; const bh = 96;
+  [[String(total), 'TOTAL ENTRIES'], [String(catCount), 'CATEGORIES']].forEach(([v, k], i) => {
+    const bx = M + i * 250, bw = 230;
+    x.fillStyle = 'rgba(244,241,234,0.07)'; x.strokeStyle = 'rgba(244,241,234,0.18)'; x.lineWidth = 2;
+    roundRect(x, bx, y, bw, bh, 10); x.fill(); x.stroke();
+    x.fillStyle = C.amber; x.font = '400 56px "Bebas Neue"'; x.fillText(v, bx + 20, y + 58);
+    x.fillStyle = C.text; x.globalAlpha = .7; x.font = '400 22px "Bebas Neue"'; x.fillText(k, bx + 20, y + 84); x.globalAlpha = 1;
+  });
+  x.fillStyle = C.text; x.globalAlpha = .7; x.font = '500 24px "Noto Sans JP"'; x.textAlign = 'right';
+  x.fillText(stamp + ' 時点', W - M, y + 84); x.textAlign = 'left'; x.globalAlpha = 1;
+
+  // 本文（カード）
+  blocks.forEach(b => {
+    const k = b.k, px = v => Math.round(v * k) + 'px';
+    x.fillStyle = C.card; roundRect(x, M, b.y, W - M * 2, b.h, 14 * k); x.fill();
+    const hx = M + 28;
+    x.fillStyle = C.ink; x.font = '400 ' + px(46) + ' "Bebas Neue"'; const nm = shortName(b.c.name) + (b.cont ? '（続き）' : '');
+    x.fillText(nm, hx, b.y + 56 * k);
+    const nw = x.measureText(nm).width; const g = gradeOf(b.c.name);
+    if (g) { x.fillStyle = '#5b554a'; x.font = '500 ' + px(22) + ' "Noto Sans JP"'; x.fillText(g, hx + nw + 14, b.y + 54 * k); }
+    x.textAlign = 'right'; x.fillStyle = '#b8701d'; x.font = '400 ' + px(40) + ' "Bebas Neue"'; x.fillText(b.c.list.length + '', W - M - 60, b.y + 56 * k);
+    x.fillStyle = '#5b554a'; x.font = '500 ' + px(20) + ' "Noto Sans JP"'; x.fillText('名', W - M - 28, b.y + 54 * k); x.textAlign = 'left';
+    x.fillStyle = C.ink; x.fillRect(M, b.y + 74 * k, W - M * 2, 3);
+    const colW = (W - M * 2 - 56) / 2;
+    b.items.forEach((it, i) => {
+      const col = i % 2, row = Math.floor(i / 2);
+      const ix = hx + col * colW, iy = b.y + (78 + row * 58 + 40) * k;
+      x.fillStyle = C.muted; x.font = '400 ' + px(30) + ' "Bebas Neue"'; x.textAlign = 'right'; x.fillText(String(it.no), ix + 34, iy); x.textAlign = 'left';
+      x.fillStyle = C.ink; x.font = '700 ' + px(30) + ' "Noto Sans JP"'; x.fillText(fit(x, it.n, colW - 64), ix + 50, iy);
+    });
+  });
+
+  // フッター
+  const fy = story ? H - 230 : H - 120; // ストーリーズは下部の返信欄を避ける
+  x.fillStyle = C.amber; x.fillRect(M, fy, W - M * 2, 3);
+  x.fillStyle = C.text; x.font = '700 32px "Noto Sans JP"'; if (msg) x.fillText(fit(x, msg, W - M * 2), M, fy + 56);
+  x.globalAlpha = .75; x.font = '500 24px "Noto Sans JP"'; x.fillText(PAGE_URL.replace(/^https?:\/\//, '').replace(/\/$/, ''), M, fy + 96); x.globalAlpha = 1;
+  return cv;
+}
+
+function roundRect(x, a, b, w, h, r) { x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
+
+async function make() {
+  const st = document.getElementById('status'), out = document.getElementById('out');
+  st.className = 'status'; st.textContent = '読み込み中…'; out.innerHTML = '';
+  try {
+    const { entries, cats } = await loadCats();
+    const allText = entries.map(e => e.name + e.cat).join('') + '名時点（続き）エントリー受付中最新リストはリンクから0123456789:/' + document.getElementById('msg').value;
+    await Promise.all([document.fonts.load('400 40px "Bebas Neue"', 'ENTRY LIST 0123'), document.fonts.load('700 30px "Noto Sans JP"', allText), document.fonts.load('500 24px "Noto Sans JP"', allText), logoReady]);
+    const W = 1080, H = fmt === 'story' ? 1920 : 1350;
+    const bodyTop = (fmt === 'story' ? 120 : 64) + 150 + 84 + 58 + 44 + 40 + 96 + 40;
+    const bodyBottom = (fmt === 'story' ? H - 230 : H - 120) - 30;
+    // 1枚に収まる最大の文字サイズを選ぶ（読みやすさの下限 0.7 倍）。収まらなければ 0.8 倍で複数枚に分割
+    let pages = null;
+    for (const k of [1, 0.92, 0.85, 0.78, 0.7]) { const p = layout(cats, W, bodyTop, bodyBottom, k); if (p.length === 1) { pages = p; break; } }
+    if (!pages) pages = layout(cats, W, bodyTop, bodyBottom, 0.8);
+    const d = new Date(), stamp = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const msg = document.getElementById('msg').value.trim();
+    const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    pages.forEach((blocks, i) => {
+      const cv = drawPage(W, H, blocks, i + 1, pages.length, entries.length, cats.length, stamp, msg);
+      const url = cv.toDataURL('image/png'); const fname = `entry_${fmt}_${ymd}_${i + 1}.png`;
+      const f = document.createElement('figure');
+      f.innerHTML = `<img alt="エントリーリスト ${i + 1}/${pages.length}"><figcaption><span>${i + 1} / ${pages.length}</span><a download="${fname}">保存</a></figcaption>`;
+      f.querySelector('img').src = url; f.querySelector('a').href = url; out.appendChild(f);
+    });
+    st.textContent = `${entries.length}名・${cats.length}カテゴリー → ${pages.length}枚作成しました（${stamp} 時点）`;
+  } catch (e) { console.error(e); st.className = 'status err'; st.textContent = '読み込みに失敗しました。通信状況を確認して再度お試しください。'; }
+}
+make();
+</script>
+</body>
+</html>
