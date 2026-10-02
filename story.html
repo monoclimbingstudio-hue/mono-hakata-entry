@@ -87,12 +87,28 @@ function parseCSV(t) { const rows=[]; let row=[], f='', q=false;
     else if(c==='"') q=true; else if(c===','){row.push(f);f='';} else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';} else if(c!=='\r') f+=c; }
   if(f!==''||row.length){row.push(f);rows.push(row);} return rows; }
 const clean = v => String(v||'').replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g,'').trim();
-function catRank(name){ const n=name.toUpperCase(); let r=500;
-  if(/U-?\s?8\b/.test(n)) r=10; else if(/U-?\s?10\b/.test(n)) r=20; else if(/U-?\s?12\b/.test(n)) r=30;
-  else if(/BEGINNER|ビギナー/.test(n)) r=100; else if(/UPPER\s*MIDDLE/.test(n)) r=220; else if(/MIDDLE|ミドル/.test(n)) r=200;
-  else if(/EXPERT\s*ADVANCED/.test(n)) r=420; else if(/EXPERT/.test(n)) r=400; else if(/OVER\s*40/.test(n)) r=330;
-  else if(/MASTER/.test(n)) r=300; else if(/OPEN/.test(n)) r=600;
-  if(/WOMEN|WOMAN|LADIES|女子/.test(n)) r+=5; return r; }
+// カテゴリー表示順（値が小さいほど上）。該当しない名前は末尾に出現順で並ぶ
+// 並び：U-8 → U-10 → U-12 → BEGINNER → ENTRY → MIDDLE → UPPER MIDDLE → MASTER系 → EXPERT ADVANCED → EXPERT系 → OPEN
+// 同じグループ内は 一般 → WOMEN'S → OVER40 の順
+function catRank(name) {
+  const n = name.toUpperCase().replace(/[’‘'`]/g, "'");
+  let r = 500;
+  if (/U-?\s?8\b|U8\b/.test(n)) r = 10;
+  else if (/U-?\s?10\b|U10\b/.test(n)) r = 20;
+  else if (/U-?\s?12\b|U12\b/.test(n)) r = 30;
+  else if (/BEGINNER|ビギナー/.test(n)) r = 100;
+  else if (/ENTRY|エントリー/.test(n)) r = 150;
+  else if (/UPPER\s*MIDDLE|アッパーミドル/.test(n)) r = 220;
+  else if (/MIDDLE|ミドル/.test(n)) r = 200;
+  else if (/MASTER|マスター/.test(n)) r = 300;
+  else if (/EXPERT\s*ADVANCED/.test(n)) return 390;
+  else if (/EXPERT|エキスパート/.test(n)) r = 400;
+  else if (/OPEN|オープン/.test(n)) r = 600;
+  else if (/OVER\s*40/.test(n)) r = 330;
+  if (r >= 150 && r < 600 && /OVER\s*40/.test(n)) r += 30;
+  if (/WOMEN|WOMAN|LADIES|女子/.test(n)) r += 5;
+  return r;
+}
 const shortName = n => n.replace(/[（(][^）)]*[）)]/g,'').trim() || n;
 const gradeOf = n => { const m=n.match(/[（(]([^）)]*)[）)]/); return m?m[1].trim():''; };
 
